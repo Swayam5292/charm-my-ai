@@ -1,5 +1,13 @@
+
+import { Moon, Sparkles, Sun } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+
+type Theme = "dark" | "light";
+
 import { Sparkles } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+
 
 const links = [
   { href: "/", label: "Home" },
@@ -7,8 +15,33 @@ const links = [
   { href: "/auth", label: "Login" },
 ];
 
+
+const THEME_KEY = "descision-ai-theme";
+
+function resolveInitialTheme(): Theme {
+  if (typeof window === "undefined") return "dark";
+
+  const saved = window.localStorage.getItem(THEME_KEY);
+  if (saved === "dark" || saved === "light") return saved;
+
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 export function AppleNavbar() {
   const location = useLocation();
+  const [theme, setTheme] = useState<Theme>(resolveInitialTheme);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("light", theme === "light");
+    window.localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+=======
+export function AppleNavbar() {
+  const location = useLocation();
+
 
   return (
     <div className="sticky top-4 z-50 mx-auto mb-8 w-full max-w-6xl px-4 sm:px-6">
@@ -19,6 +52,36 @@ export function AppleNavbar() {
           </div>
           <span className="font-display text-base font-semibold text-foreground">Descision AI</span>
         </Link>
+
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-full bg-white/5 p-1">
+            {links.map((link) => {
+              const active = location.pathname === link.href;
+
+              return (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                    active ? "bg-white/15 text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-muted-foreground transition-colors hover:text-foreground"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
 
         <div className="flex items-center gap-1 rounded-full bg-white/5 p-1">
           {links.map((link) => {
@@ -36,6 +99,7 @@ export function AppleNavbar() {
               </Link>
             );
           })}
+
         </div>
       </nav>
     </div>
