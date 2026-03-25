@@ -12,10 +12,14 @@ import { createMessage, type Message } from "@/lib/decisionAI";
 
 import { supabase } from "@/integrations/supabase/client";
 
+
+import { supabase } from "@/integrations/supabase/client";
+
 import { supabase } from "@/integrations/supabase/client";
 
 
 import { supabase } from "@/integrations/supabase/client";
+
 
 
 
@@ -171,6 +175,10 @@ export default function Chat() {
         </div>
 
 
+
+        </div>
+
+
         </div>
 
 
@@ -179,6 +187,7 @@ export default function Chat() {
         </div>
 
         {/* Messages */}
+
 
 
 
