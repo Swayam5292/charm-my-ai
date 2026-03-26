@@ -46,10 +46,10 @@ export async function fetchMessages(conversationId: string): Promise<DbMessage[]
   const { data, error } = await supabase
     .from("messages")
     .select("*")
-    .eq("conversation_id", conversationId) as any;
+    .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return data ?? [];
+  return (data as unknown as DbMessage[]) ?? [];
 }
 
 export async function saveMessage(conversationId: string, role: "user" | "assistant", content: string): Promise<void> {
