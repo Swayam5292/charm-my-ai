@@ -11,6 +11,7 @@ import { ChatSidebar } from "@/components/ChatSidebar";
 import { streamChat, type Msg } from "@/lib/streamChat";
 import { createMessage, type Message } from "@/lib/decisionAI";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   fetchConversations,
   createConversation,
@@ -30,7 +31,6 @@ const initialSuggestions = [
   "Help me study for a calculus exam",
   "What are the causes of World War I?",
   "Explain recursion in programming",
-  "I'm feeling stressed about exams",
   "Tips for effective note-taking",
 ];
 
@@ -40,14 +40,20 @@ function getRandomSuggestions() {
 
 export default function Chat() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [suggestions, setSuggestions] = useState(getRandomSuggestions);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  // Auto-open sidebar on desktop
+  useEffect(() => {
+    if (!isMobile) setSidebarOpen(true);
+  }, [isMobile]);
 
   const scrollToBottom = useCallback(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
@@ -55,13 +61,13 @@ export default function Chat() {
 
   useEffect(scrollToBottom, [messages, isTyping, scrollToBottom]);
 
-  // Load conversations on mount
   useEffect(() => {
     fetchConversations().then(setConversations).catch(console.error);
   }, []);
 
   const loadConversation = useCallback(async (convId: string) => {
     setActiveConvId(convId);
+    if (isMobile) setSidebarOpen(false);
     try {
       const dbMsgs = await fetchMessages(convId);
       const loaded: Message[] = dbMsgs.map((m) => ({
@@ -72,18 +78,18 @@ export default function Chat() {
       }));
       setMessages(loaded.length > 0 ? loaded : [WELCOME]);
       setSuggestions(getRandomSuggestions());
-    } catch (e) {
-      console.error(e);
+    } catch {
       toast.error("Failed to load conversation");
     }
-  }, []);
+  }, [isMobile]);
 
   const handleNewChat = useCallback(() => {
     setActiveConvId(null);
     setMessages([WELCOME]);
     setSuggestions(getRandomSuggestions());
     setInput("");
-  }, []);
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile]);
 
   const handleDeleteConv = useCallback(async (id: string) => {
     try {
@@ -103,15 +109,13 @@ export default function Chat() {
 
       let convId = activeConvId;
 
-      // Create conversation if needed
       if (!convId) {
         try {
           const conv = await createConversation(trimmed.slice(0, 50));
           convId = conv.id;
           setActiveConvId(convId);
           setConversations((prev) => [conv, ...prev]);
-        } catch (e) {
-          console.error(e);
+        } catch {
           toast.error("Failed to create conversation");
           return;
         }
@@ -123,7 +127,6 @@ export default function Chat() {
       setIsTyping(true);
       setSuggestions([]);
 
-      // Save user message
       saveMessage(convId, "user", trimmed).catch(console.error);
 
       const chatHistory: Msg[] = messages
@@ -151,7 +154,6 @@ export default function Chat() {
           onDone: () => {
             setIsTyping(false);
             setSuggestions(getRandomSuggestions());
-            // Save assistant message
             if (assistantSoFar) {
               saveMessage(finalConvId, "assistant", assistantSoFar).catch(console.error);
             }
@@ -162,8 +164,7 @@ export default function Chat() {
             setSuggestions(getRandomSuggestions());
           },
         });
-      } catch (e) {
-        console.error(e);
+      } catch {
         toast.error("Something went wrong. Please try again.");
         setIsTyping(false);
         setSuggestions(getRandomSuggestions());
@@ -172,8 +173,6 @@ export default function Chat() {
     [isTyping, messages, activeConvId]
   );
 
-  const handleReset = () => handleNewChat();
-
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     toast.success("Signed out successfully");
@@ -181,86 +180,82 @@ export default function Chat() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-3 sm:p-4 overflow-hidden">
-      <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" width={1920} height={1080} />
-      <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/70 to-background/90" />
+    <div className="relative min-h-screen flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+      <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" width={1920} height={1080} />
+      <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/80 to-background/90" />
 
       <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-5xl h-[90vh] max-h-[860px] glass-strong rounded-3xl flex overflow-hidden glow-primary"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative w-full max-w-5xl h-[95vh] sm:h-[90vh] max-h-[860px] rounded-2xl sm:rounded-3xl border border-border/20 bg-card/70 backdrop-blur-xl flex overflow-hidden"
       >
+        {/* Mobile sidebar overlay */}
+        {isMobile && sidebarOpen && (
+          <div className="absolute inset-0 z-20 bg-background/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+        )}
+
         {/* Sidebar */}
-        <ChatSidebar
-          conversations={conversations}
-          activeId={activeConvId}
-          onSelect={loadConversation}
-          onNew={handleNewChat}
-          onDelete={handleDeleteConv}
-          isOpen={sidebarOpen}
-        />
+        <div className={isMobile ? "absolute left-0 top-0 bottom-0 z-30" : ""}>
+          <ChatSidebar
+            conversations={conversations}
+            activeId={activeConvId}
+            onSelect={loadConversation}
+            onNew={handleNewChat}
+            onDelete={handleDeleteConv}
+            isOpen={sidebarOpen}
+          />
+        </div>
 
         {/* Main Chat */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.4 }}
-            className="flex items-center justify-between px-5 py-4 border-b border-border/30"
-          >
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-border/20">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setSidebarOpen((p) => !p)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                title="Toggle sidebar"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
               >
                 {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
               </button>
               <button
                 onClick={() => navigate("/")}
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center glow-primary">
-                <Sparkles className="w-5 h-5 text-primary" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
               </div>
-              <div>
-                <h1 className="font-display text-lg font-semibold text-foreground">Descision AI</h1>
-                <p className="text-xs text-muted-foreground">Personal academic assistant</p>
+              <div className="min-w-0">
+                <h1 className="font-display text-base sm:text-lg font-semibold text-foreground truncate">Descision AI</h1>
+                <p className="text-[11px] text-muted-foreground hidden sm:block">Personal academic assistant</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={handleReset} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors" title="New chat">
+              <button onClick={handleNewChat} className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors" title="New chat">
                 <RotateCcw className="w-4 h-4" />
               </button>
-              <button onClick={handleSignOut} className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors" title="Sign out">
+              <button onClick={handleSignOut} className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors" title="Sign out">
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Tip */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.35, duration: 0.4 }}
-            className="mx-4 mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
-          >
+          {/* Tip - hide on small screens */}
+          <div className="mx-3 sm:mx-4 mt-2 sm:mt-3 rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-[11px] sm:text-xs text-muted-foreground hidden sm:block">
             Tip: Ask for summaries, quiz questions, or step-by-step breakdowns to improve retention.
-          </motion.div>
+          </div>
 
           {/* Messages */}
-          <div ref={chatRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 scrollbar-thin">
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4 scrollbar-thin">
             <AnimatePresence initial={false}>
               {messages.map((msg, i) => (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i === messages.length - 1 ? 0.05 : 0 }}
+                  transition={{ duration: 0.25, delay: i === messages.length - 1 ? 0.05 : 0 }}
                 >
                   <ChatMessage message={msg} />
                 </motion.div>
@@ -273,10 +268,9 @@ export default function Chat() {
           <AnimatePresence>
             {suggestions.length > 0 && !isTyping && (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ duration: 0.3 }}
+                exit={{ opacity: 0, y: 6 }}
                 className="px-3 pb-2"
               >
                 <SuggestionChips suggestions={suggestions} onSelect={sendMessage} />
@@ -285,12 +279,7 @@ export default function Chat() {
           </AnimatePresence>
 
           {/* Input */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="p-3 border-t border-border/30"
-          >
+          <div className="p-2 sm:p-3 border-t border-border/20">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -303,26 +292,24 @@ export default function Chat() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask any study question..."
-                className="flex-1 bg-muted/50 text-foreground placeholder:text-muted-foreground rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/40 transition-shadow font-body"
+                className="flex-1 bg-muted/30 text-foreground placeholder:text-muted-foreground rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-shadow font-body"
                 maxLength={500}
                 disabled={isTyping}
               />
-              <motion.button
+              <button
                 aria-label="Send message"
                 type="submit"
                 disabled={!input.trim() || isTyping}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-opacity"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-opacity shrink-0"
               >
                 <Send className="w-4 h-4" />
-              </motion.button>
+              </button>
             </form>
-            <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+            <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] sm:text-[11px] text-muted-foreground">
               <span>Press Enter to send</span>
               <span>{input.length}/500</span>
             </div>
-          </motion.div>
+          </div>
         </div>
       </motion.div>
     </div>
